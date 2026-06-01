@@ -4,12 +4,32 @@
  * Browser-only: relies on createImageBitmap / OffscreenCanvas.
  */
 
+/** Schemes toImageData will fetch. Anything else (file:, javascript:, …) is rejected. */
+const ALLOWED_IMAGE_SCHEMES = ['http', 'https', 'data', 'blob'];
+
+/**
+ * Reject string inputs with an unexpected URL scheme before fetching. A string
+ * with no scheme is a relative/same-origin path and is allowed. Defense-in-depth:
+ * callers should still only pass image sources they trust — toImageData will
+ * fetch whatever URL it is given (with the page's credentials for same-origin).
+ */
+export function assertSafeImageSource(input: string): void {
+  const scheme = /^([a-zA-Z][a-zA-Z0-9+.-]*):/.exec(input)?.[1].toLowerCase();
+  if (scheme && !ALLOWED_IMAGE_SCHEMES.includes(scheme)) {
+    throw new Error(
+      `Unsupported image source scheme "${scheme}:". Allowed: ${ALLOWED_IMAGE_SCHEMES.join(', ')}, or a relative path.`,
+    );
+  }
+}
+
 /**
  * Normalize any supported input type to ImageData.
  *
  * Supported: HTMLImageElement, ImageData, data: URLs, blob: URLs,
  * same-origin URLs, and CORS-enabled cross-origin URLs.
  * Cross-origin non-CORS URLs will fail; use data-URL, blob:, or same-origin paths.
+ *
+ * String inputs are fetched, so pass only sources you trust (see assertSafeImageSource).
  */
 export async function toImageData(
   input: HTMLImageElement | ImageData | string,
@@ -19,6 +39,7 @@ export async function toImageData(
   let bitmap: ImageBitmap;
 
   if (typeof input === 'string') {
+    assertSafeImageSource(input);
     const response = await fetch(input);
     if (!response.ok) throw new Error(`Failed to fetch image: ${response.status} ${input}`);
     const blob = await response.blob();

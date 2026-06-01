@@ -68,6 +68,7 @@ MediaPipe FaceLandmarker → Umeyama alignment → MobileFaceNet ONNX → cosine
 
 ```bash
 npm install @rajeevdesai/face-recognition
+
 # peer deps (often already present in your app):
 npm install onnxruntime-web @mediapipe/tasks-vision
 

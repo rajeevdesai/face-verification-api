@@ -14,7 +14,13 @@
 import * as ort from 'onnxruntime-web';
 import type { NormalizedLandmark } from '@mediapipe/tasks-vision';
 import type { LivenessConfig } from './types.js';
-import { buildInputTensor, tensorDims, triplet, type ResolvedTensorSpec } from './preprocess.js';
+import {
+  buildInputTensor,
+  tensorDims,
+  triplet,
+  validateInputSize,
+  type ResolvedTensorSpec,
+} from './preprocess.js';
 
 export interface ResolvedLivenessConfig extends ResolvedTensorSpec {
   cropScale: number;
@@ -44,7 +50,7 @@ export const LIVENESS_DEFAULTS: ResolvedLivenessConfig = {
 /** Merge a user LivenessConfig over the defaults. */
 export function resolveLivenessConfig(c: LivenessConfig = {}): ResolvedLivenessConfig {
   return {
-    inputSize: c.inputSize ?? LIVENESS_DEFAULTS.inputSize,
+    inputSize: validateInputSize(c.inputSize ?? LIVENESS_DEFAULTS.inputSize),
     layout: c.layout ?? LIVENESS_DEFAULTS.layout,
     channelOrder: c.channelOrder ?? LIVENESS_DEFAULTS.channelOrder,
     mean: c.mean !== undefined ? triplet(c.mean) : LIVENESS_DEFAULTS.mean,

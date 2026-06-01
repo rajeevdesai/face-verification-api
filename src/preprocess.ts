@@ -24,6 +24,17 @@ export function triplet(v: number | [number, number, number]): [number, number, 
 }
 
 /**
+ * Guard against an absurd inputSize that would allocate a huge tensor
+ * (3 × size² floats). Throws at config-resolution time, before any allocation.
+ */
+export function validateInputSize(n: number): number {
+  if (!Number.isInteger(n) || n < 1 || n > 8192) {
+    throw new Error(`Invalid model inputSize ${n}: expected an integer in [1, 8192].`);
+  }
+  return n;
+}
+
+/**
  * Convert an RGBA ImageData (already sized to spec.inputSize²) into a Float32
  * input tensor.
  *

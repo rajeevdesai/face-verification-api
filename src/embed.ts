@@ -5,7 +5,13 @@
  */
 import * as ort from 'onnxruntime-web';
 import type { RecognitionConfig, DistanceMetric } from './types.js';
-import { buildInputTensor, tensorDims, triplet, type ResolvedTensorSpec } from './preprocess.js';
+import {
+  buildInputTensor,
+  tensorDims,
+  triplet,
+  validateInputSize,
+  type ResolvedTensorSpec,
+} from './preprocess.js';
 
 export interface ResolvedRecognitionConfig extends ResolvedTensorSpec {
   l2normalize: boolean;
@@ -26,7 +32,7 @@ export const RECOGNITION_DEFAULTS: ResolvedRecognitionConfig = {
 /** Merge a user RecognitionConfig over the defaults. */
 export function resolveRecognitionConfig(c: RecognitionConfig = {}): ResolvedRecognitionConfig {
   return {
-    inputSize: c.inputSize ?? RECOGNITION_DEFAULTS.inputSize,
+    inputSize: validateInputSize(c.inputSize ?? RECOGNITION_DEFAULTS.inputSize),
     layout: c.layout ?? RECOGNITION_DEFAULTS.layout,
     channelOrder: c.channelOrder ?? RECOGNITION_DEFAULTS.channelOrder,
     mean: c.mean !== undefined ? triplet(c.mean) : RECOGNITION_DEFAULTS.mean,

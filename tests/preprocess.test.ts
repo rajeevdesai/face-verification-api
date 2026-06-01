@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildInputTensor, tensorDims, triplet } from '../src/preprocess.js';
+import { buildInputTensor, tensorDims, triplet, validateInputSize } from '../src/preprocess.js';
 import type { ResolvedTensorSpec } from '../src/preprocess.js';
 
 /** Build an ImageData from per-pixel [r,g,b] triples (alpha forced to 255). */
@@ -31,6 +31,18 @@ describe('triplet', () => {
 describe('tensorDims', () => {
   it('NCHW', () => expect(tensorDims('NCHW', 80)).toEqual([1, 3, 80, 80]));
   it('NHWC', () => expect(tensorDims('NHWC', 80)).toEqual([1, 80, 80, 3]));
+});
+
+describe('validateInputSize', () => {
+  it('accepts valid sizes', () => {
+    expect(validateInputSize(80)).toBe(80);
+    expect(validateInputSize(112)).toBe(112);
+  });
+  it('rejects non-integers, non-positive, and absurd sizes', () => {
+    for (const n of [0, -1, 1.5, 9000, NaN, Infinity]) {
+      expect(() => validateInputSize(n)).toThrow(/Invalid model inputSize/);
+    }
+  });
 });
 
 describe('buildInputTensor', () => {
