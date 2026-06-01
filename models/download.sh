@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Download model weights into models/. Not committed (see .gitignore).
 #
-# Recognition model is facex_nano (set below) — verified (Open Risk #1) as a plain,
-# unencrypted ONNX: input `input` [1,3,112,112], output `embedding` [1,256].
+# Recognition model is facex_nano (set below) — verified as a plain, unencrypted
+# ONNX: input `input` [1,3,112,112], output `embedding` [1,256].
 # Licensing: keep recognition weights Apache-2.0 — do NOT swap in InsightFace
 # weights (non-commercial license).
 

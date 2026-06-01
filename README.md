@@ -287,13 +287,12 @@ Integration tests require browser APIs **and** locally-provided consented fixtur
 
 ## Open Risks
 
-1. **Recognition model extractability** *(verified)* — the downloaded `mobilefacenet.onnx` loads as a plain, unencrypted ONNX graph (input `input`, output `embedding` `[1,256]`). No fallback needed for the default weights.
-2. **Preprocessing layout** *(verified)* — confirmed NCHW `[1,3,112,112]`: inference on that shape succeeds and yields the expected 256-D embedding (an HWC graph would reject it). A consumer-supplied model with a different layout still needs its own check.
-3. **Landmark indices** *(verified 2026-06-02)* — the float16 `face_landmarker.task` emits 478 landmarks, and the five extracted points (iris 468/473, nose 1, mouth 61/291) fit `ARCFACE_DST` at ~1-2px RMS, confirming correct image-side pairing (no left/right swap). Re-confirm if you swap in a different `.task` bundle.
-4. **Threshold** — the default 0.5 is uncalibrated. Measure on your own (consented) data with `demo/calibrate.html`.
-5. **Test fixtures** — use CC0 / self-provided images, never scraped faces.
-6. **Liveness is not a complete spoof defense** *(updated 2026-06-02)* — the default ensembles MiniFASNetV2 (@2.7) and MiniFASNetV1SE (@4.0), averaging their live scores (minivision's approach). Both reliably reject screen/video replay. **Print remains the hard case**: single-V2 measurements showed live faces ~0.88–0.96, replay ~0, but one printed photo false-accepted at 0.882 (the live/print ranges overlap). The ensemble is intended to reduce print false-accepts; passive RGB liveness cannot fully eliminate them, so still pair with another factor. `livenessThreshold` (default 0.5) is uncalibrated.
-7. **Liveness output format** *(validated 2026-06-02)* — the model emits **3-class logits** (softmax them). The **live class is index 1** (minivision convention: label 1 = real). Input must be raw **`[0,255]`** BGR, *not* `[0,1]` — at `[0,1]` this export is degenerate, collapsing every input to index 2 (~0.99); that artifact previously masqueraded as "index 2 = live". Index 2 is the screen/video-replay spoof class; index 0 is another spoof class. The garciafido model card's index-0 claim is wrong for these weights.
+Standing limitations to weigh before production. *(Verified during development and no longer tracked as risks: recognition-model extractability, preprocessing layout `[1,3,112,112]`, landmark indices, and the liveness output format/class mapping — see git history.)*
+
+- **Thresholds are uncalibrated.** `threshold` (0.5 cosine distance) and `livenessThreshold` (0.5) are placeholders. Calibrate on your own consented data — see [Threshold & calibration](#threshold--calibration) and `demo/calibrate.html`. Distances aren't comparable across models, so recalibrate whenever you swap the recognition model.
+- **Liveness is not a complete spoof defense.** The default ensemble (MiniFASNetV2 @2.7 + MiniFASNetV1SE @4.0) reliably rejects screen/video replay, but **print is the hard case** — a printed photo can still occasionally pass (a single-model probe false-accepted one at 0.882, overlapping the live range). Passive RGB liveness can't fully eliminate this; pair with another factor for anything security-critical.
+- **Calibration data is biometric.** A face used for identification is personal data (GDPR Art. 9, Illinois BIPA, and similar). Use consented, self-collected, or CC0 images — never scraped datasets.
+- **Accuracy is bounded by the model.** facex_nano scores ~95.62% on LFW; harder in-the-wild captures (pose, lighting, occlusion) do worse. Expect some error and design for it.
 
 ## Licensing
 

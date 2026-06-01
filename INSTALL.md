@@ -36,7 +36,7 @@ This fetches four files:
 | `minifasnet_v2.onnx` | MiniFASNetV2 liveness (crop 2.7) | Apache-2.0 |
 | `minifasnet_v1se.onnx` | MiniFASNetV1SE liveness (crop 4.0, ensemble 2nd model) | Apache-2.0 |
 
-> Review [Open Risks](./README.md#open-risks) #1 before relying on the recognition model in production.
+> Review the [Open Risks](./README.md#open-risks) (uncalibrated thresholds, liveness print limits) before relying on this in production.
 
 ## 4. Serve the models
 

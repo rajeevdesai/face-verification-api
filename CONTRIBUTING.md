@@ -6,9 +6,9 @@ Thanks for your interest in improving `face-recognition-api`. This is a small, d
 
 The highest-value work is closing the documented [Open Risks](./README.md#open-risks):
 
-- **Stronger print liveness** (Open Risk #6) — the default already ensembles MiniFASNetV2 (@2.7) + MiniFASNetV1SE (@4.0), but print can still occasionally pass. Further directions: a depth or challenge-response signal, a stronger anti-spoof model, or per-deployment liveness-threshold calibration on live-vs-print captures.
+- **Stronger print liveness** (Open Risks → liveness) — the default already ensembles MiniFASNetV2 (@2.7) + MiniFASNetV1SE (@4.0), but print can still occasionally pass. Further directions: a depth or challenge-response signal, a stronger anti-spoof model, or per-deployment liveness-threshold calibration on live-vs-print captures.
 - **Threshold calibration** — calibration data and a documented methodology for the recognition and liveness thresholds.
-- **Preprocessing / layout validation** (Open Risks #1–#3) — confirming model input layout and landmark indices against the shipped weights.
+- **BYO-model validation** — when swapping in a different recognition model or `.task` bundle, confirm its input layout, channel order, and landmark indices (the bundled defaults are already verified).
 
 ## Development setup
 
@@ -43,7 +43,7 @@ Keep `npm test` green and `npx tsc --noEmit` clean before opening a PR. If you t
 
 ### Test fixtures
 
-Use only **CC0 or self-provided** images. Never commit scraped or third-party face photos (Open Risk #5).
+Use only **CC0 or self-provided** images. Never commit scraped or third-party face photos (see Open Risks → calibration data).
 
 ## Code style
 
