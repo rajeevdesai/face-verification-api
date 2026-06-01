@@ -1,7 +1,7 @@
 # face-recognition-api
 
 [![CI](https://github.com/rajeevdesai/face-recognition-api/actions/workflows/ci.yml/badge.svg)](https://github.com/rajeevdesai/face-recognition-api/actions/workflows/ci.yml)
-[![npm](https://img.shields.io/npm/v/@rajeevdesai/face-recognition)](https://www.npmjs.com/package/@rajeevdesai/face-recognition)
+[![npm](https://img.shields.io/npm/v/@rajeevdesai/face-recognition-api)](https://www.npmjs.com/package/@rajeevdesai/face-recognition-api)
 [![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 [![live demo](https://img.shields.io/badge/demo-try%20me-7cf?logo=github)](https://rajeevdesai.github.io/face-recognition-api/)
 
@@ -67,7 +67,7 @@ MediaPipe FaceLandmarker → Umeyama alignment → MobileFaceNet ONNX → cosine
 ## Install
 
 ```bash
-npm install @rajeevdesai/face-recognition
+npm install @rajeevdesai/face-recognition-api
 
 # peer deps (often already present in your app):
 npm install onnxruntime-web @mediapipe/tasks-vision
@@ -83,7 +83,7 @@ Then **serve the `models/` directory** alongside your app so the browser can fet
 ## Quick start
 
 ```typescript
-import { loadModels, compareFaces } from '@rajeevdesai/face-recognition';
+import { loadModels, compareFaces } from '@rajeevdesai/face-recognition-api';
 
 // Once at app startup — loads & caches the models (liveness optional).
 await loadModels({

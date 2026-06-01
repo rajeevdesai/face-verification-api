@@ -1,5 +1,5 @@
 {
-  "name": "@rajeevdesai/face-recognition",
+  "name": "@rajeevdesai/face-recognition-api",
   "version": "0.1.0",
   "description": "Browser face verification library — custom pipeline (no wrapper libs)",
   "type": "module",
@@ -34,13 +34,13 @@
     "node": ">=18"
   },
   "sideEffects": false,
-  "main": "dist/face-recognition.umd.cjs",
-  "module": "dist/face-recognition.js",
+  "main": "dist/face-recognition-api.umd.cjs",
+  "module": "dist/face-recognition-api.js",
   "types": "dist/index.d.ts",
   "exports": {
     ".": {
-      "import": "./dist/face-recognition.js",
-      "require": "./dist/face-recognition.umd.cjs"
+      "import": "./dist/face-recognition-api.js",
+      "require": "./dist/face-recognition-api.umd.cjs"
     }
   },
   "files": [

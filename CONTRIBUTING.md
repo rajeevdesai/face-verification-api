@@ -67,7 +67,7 @@ Use only **CC0 or self-provided** images. Never commit scraped or third-party fa
 
 ## Releasing (maintainers)
 
-Published to npm as [`@rajeevdesai/face-recognition`](https://www.npmjs.com/package/@rajeevdesai/face-recognition) via the `Release` GitHub Action.
+Published to npm as [`@rajeevdesai/face-recognition-api`](https://www.npmjs.com/package/@rajeevdesai/face-recognition-api) via the `Release` GitHub Action.
 
 **One-time setup:** add an `NPM_TOKEN` repository secret — an npm **automation** token for the `@rajeevdesai` scope (Settings → Secrets and variables → Actions).
 

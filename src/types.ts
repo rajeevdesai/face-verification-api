@@ -1,4 +1,4 @@
-/** Public types for the face-recognition API: results, options, flags, config. */
+/** Public types for the face-recognition-api: results, options, flags, config. */
 
 export type FraudFlag =
   | 'baseline_missing'
