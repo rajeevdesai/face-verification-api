@@ -5,7 +5,7 @@
  *   1. Decodes both inputs to ImageData             (image.ts)
  *   2. Detects + landmarks every face               (detect.ts)
  *   3. Aligns each face to the ArcFace template      (align.ts)
- *   4. Embeds and compares by cosine distance        (embed.ts)
+ *   4. Embeds and compares by the configured metric  (embed.ts)
  *   5. Optionally scores liveness on the best match  (liveness.ts)
  *
  * Returns a structured {@link CompareResult}: a boolean match, a
@@ -16,7 +16,7 @@ import type { CompareOptions, CompareResult, FraudFlag } from './types.js';
 import { toImageData } from './image.js';
 import { detectFaces } from './detect.js';
 import { extractFivePoints, warpFace } from './align.js';
-import { embed, cosineDistance } from './embed.js';
+import { embed, distance } from './embed.js';
 import { cropForLiveness, scoreLiveness } from './liveness.js';
 import { getModels } from './models.js';
 
@@ -33,8 +33,8 @@ const LOW_CONF_RATIO = 0.8;
 
 /**
  * Build a non-matching result for the early-exit cases where one side has no
- * detectable face. cosineDistance is reported as 1 (maximum dissimilarity)
- * because no embedding comparison was performed.
+ * detectable face. distance is reported as 1 (maximum dissimilarity) because no
+ * embedding comparison was performed.
  */
 function noMatchResult(
   flags: FraudFlag[],
@@ -46,7 +46,7 @@ function noMatchResult(
     match: false,
     confidence: 0,
     flags,
-    details: { baselineFacesFound, currentFacesFound, cosineDistance: 1, threshold },
+    details: { baselineFacesFound, currentFacesFound, distance: 1, threshold },
   };
 }
 
@@ -63,8 +63,17 @@ export async function compareFaces(
 ): Promise<CompareResult> {
   const threshold = options.threshold ?? DEFAULT_THRESHOLD;
   const livenessThreshold = options.livenessThreshold ?? 0.5;
-  const { faceLandmarker, session, livenessSession } = getModels();
-  const runLiveness = options.checkLiveness !== false;
+  const { faceLandmarker, session, livenessSession, recognitionConfig, livenessConfig } =
+    getModels();
+
+  // Liveness runs by default when a model is loaded. Explicitly requesting it
+  // without a loaded model is a configuration error.
+  if (options.checkLiveness === true && !livenessSession) {
+    throw new Error(
+      'checkLiveness:true but no liveness model is loaded. Pass livenessModelPath to loadModels().',
+    );
+  }
+  const runLiveness = options.checkLiveness ?? livenessSession !== null;
 
   const [baselineData, currentData] = await Promise.all([
     toImageData(baseline),
@@ -102,17 +111,17 @@ export async function compareFaces(
     baselineData.width,
     baselineData.height,
   );
-  const baselineCrop = warpFace(baselineData, baselinePts);
-  const baselineEmb = await embed(session, baselineCrop);
+  const baselineCrop = warpFace(baselineData, baselinePts, recognitionConfig.inputSize);
+  const baselineEmb = await embed(session, baselineCrop, recognitionConfig);
 
   // --- Embed all current faces, pick closest match ---
   let bestDistance = Infinity;
   let bestFaceLandmarks = currentFaces[0].landmarks;
   for (const face of currentFaces) {
     const pts = extractFivePoints(face.landmarks, currentData.width, currentData.height);
-    const crop = warpFace(currentData, pts);
-    const emb = await embed(session, crop);
-    const dist = cosineDistance(baselineEmb, emb);
+    const crop = warpFace(currentData, pts, recognitionConfig.inputSize);
+    const emb = await embed(session, crop, recognitionConfig);
+    const dist = distance(baselineEmb, emb, recognitionConfig.metric);
     if (dist < bestDistance) {
       bestDistance = dist;
       bestFaceLandmarks = face.landmarks;
@@ -121,10 +130,14 @@ export async function compareFaces(
 
   // --- Liveness check on best-match face ---
   let livenessScore: number | undefined;
-  if (runLiveness) {
-    // Scale omitted → uses cropForLiveness default 2.7, the MiniFASNetV2 training crop.
-    const livenessCrop = cropForLiveness(currentData, bestFaceLandmarks);
-    livenessScore = await scoreLiveness(livenessSession, livenessCrop);
+  if (runLiveness && livenessSession) {
+    const livenessCrop = cropForLiveness(
+      currentData,
+      bestFaceLandmarks,
+      livenessConfig.cropScale,
+      livenessConfig.inputSize,
+    );
+    livenessScore = await scoreLiveness(livenessSession, livenessCrop, livenessConfig);
     if (livenessScore < livenessThreshold) flags.push('liveness_fail');
   }
 
@@ -151,7 +164,7 @@ export async function compareFaces(
     details: {
       baselineFacesFound: baselineFaces.length,
       currentFacesFound: currentFaces.length,
-      cosineDistance: bestDistance,
+      distance: bestDistance,
       threshold,
       livenessScore,
     },

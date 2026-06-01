@@ -59,7 +59,7 @@ MediaPipe FaceLandmarker → Umeyama alignment → MobileFaceNet ONNX → cosine
 3. **Align** (`align.ts`) — five ArcFace keypoints are extracted, then an Umeyama similarity transform warps the face to the canonical 112×112 ArcFace pose.
 4. **Embed & compare** (`embed.ts`) — MobileFaceNet produces an L2-normalized embedding per face; identity distance is `1 − cosine similarity`.
 5. **Liveness** (`liveness.ts`, optional) — MiniFASNetV2 scores the matched face for spoofing.
-6. **Decide** (`compare.ts`) — a match requires *both* identity (distance ≤ threshold) *and* liveness; flags are emitted along the way.
+6. **Decide** (`compare.ts`) — a match requires identity (distance ≤ threshold) and, when liveness is enabled, a passing liveness score; flags are emitted along the way.
 
 ## Install
 
@@ -81,11 +81,11 @@ Then **serve the `models/` directory** alongside your app so the browser can fet
 ```typescript
 import { loadModels, compareFaces } from '@rajeevdesai/face-recognition';
 
-// Once at app startup — loads & caches all three models.
+// Once at app startup — loads & caches the models (liveness optional).
 await loadModels({
   faceLandmarkerPath: '/models/face_landmarker.task',
   recognitionModelPath: '/models/mobilefacenet.onnx',
-  livenessModelPath: '/models/minifasnet_v2.onnx',  // required
+  livenessModelPath: '/models/minifasnet_v2.onnx',  // optional — omit to disable liveness
   // wasmBasePath: '/wasm/'  ← only if ort .wasm files aren't on the default CDN
 });
 
@@ -98,15 +98,17 @@ console.log(result.match, result.confidence, result.flags);
 
 ### `loadModels(config)`
 
-Loads and caches the three models as singletons. Safe to call multiple times — subsequent calls are no-ops once loaded. Must run before `compareFaces`.
+Loads and caches the models as singletons (FaceLandmarker + recognition, plus liveness if a path is given). Safe to call multiple times — subsequent calls are no-ops once loaded. Must run before `compareFaces`.
 
 | Field | Required | Default | Description |
 |-------|----------|---------|-------------|
 | `faceLandmarkerPath` | no | `models/face_landmarker.task` | MediaPipe FaceLandmarker `.task` |
 | `recognitionModelPath` | no | `models/mobilefacenet.onnx` | Embedding model ONNX |
-| `livenessModelPath` | **yes** | — | MiniFASNetV2 anti-spoofing ONNX |
+| `livenessModelPath` | no | — | Liveness ONNX. **Omit to disable liveness entirely.** |
 | `wasmBasePath` | no | jsDelivr CDN | Base URL for MediaPipe + onnxruntime-web `.wasm` |
 | `warmup` | no | `true` | Run a dummy inference to avoid first-call latency |
+| `recognition` | no | facex_nano spec | Preprocessing/metric overrides for a BYO recognition model — see [Bring your own model](#bring-your-own-model) |
+| `liveness` | no | MiniFASNetV2 spec | Preprocessing/class overrides for a BYO liveness model |
 
 ### `compareFaces(baseline, current, options?)`
 
@@ -123,9 +125,9 @@ Cross-origin **non-CORS** URLs will fail — use `data:` or `blob:` for file inp
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `threshold` | `0.5` | Cosine-distance match cutoff. Lower = stricter. **Uncalibrated** — see [calibration](#threshold--calibration). |
+| `threshold` | `0.5` | Match cutoff in the configured distance metric (default cosine). Lower = stricter. **Uncalibrated** — see [calibration](#threshold--calibration). |
 | `livenessThreshold` | `0.5` | Liveness score must meet this to pass. Uncalibrated. |
-| `checkLiveness` | `true` | Set `false` to skip the liveness model entirely. |
+| `checkLiveness` | auto | Defaults to `true` when a liveness model is loaded, `false` otherwise. Set `false` to skip; passing `true` with no liveness model throws. |
 
 **Result shape**
 
@@ -137,7 +139,7 @@ interface CompareResult {
   details: {
     baselineFacesFound: number;
     currentFacesFound: number;
-    cosineDistance: number;  // lower = more similar
+    distance: number;        // configured metric (default cosine); lower = more similar
     threshold: number;
     livenessScore?: number;  // 0–1; present only when the liveness check ran
   };
@@ -158,11 +160,49 @@ interface CompareResult {
 
 ### Bring your own model
 
+Both the recognition and liveness models are swappable, and their preprocessing is configurable — so a model that doesn't match the bundled defaults works **without forking**. Override only the fields that differ:
+
 ```typescript
-await loadModels({ recognitionModelPath: '/path/to/your-model.onnx', livenessModelPath: '/models/minifasnet_v2.onnx' });
+await loadModels({
+  recognitionModelPath: '/models/my-arcface.onnx',
+  recognition: {                 // defaults shown
+    inputSize: 112,              // square input side
+    layout: 'NCHW',              // 'NCHW' | 'NHWC'
+    channelOrder: 'RGB',         // 'RGB' | 'BGR'
+    mean: 127.5,                 // scalar or [r,g,b]; value = (pixel - mean) / std
+    std: 127.5,
+    l2normalize: true,           // L2-normalize embeddings before distance
+    metric: 'cosine',            // 'cosine' | 'euclidean'
+  },
+  livenessModelPath: '/models/my-liveness.onnx',  // omit to disable liveness
+  liveness: {
+    inputSize: 80,
+    layout: 'NCHW',
+    channelOrder: 'BGR',
+    mean: 0,
+    std: 1,                      // raw [0,255]; use std 255 for [0,1]
+    cropScale: 2.7,              // face-crop expansion factor
+    liveClassIndex: 1,           // index of the "live" class in the output
+    applySoftmax: true,          // false if the model already outputs probabilities
+  },
+});
 ```
 
-A consumer-supplied recognition model must match the expected input spec: `[1, 3, 112, 112]` Float32 NCHW, RGB, values in `[-1, 1]`, outputs a fixed-length embedding (the `facex_nano` default is 256-D; any consistent dimension works since baseline and current use the same model).
+**Preprocessing contract.** The aligned crop is mapped `value = (pixel - mean) / std` per channel (pixels in `[0,255]`), in `channelOrder`, laid out per `layout`. The recognition crop is the face warped to the ArcFace 5-point template scaled to `inputSize`, so any `inputSize` is supported. The embedding can be any fixed length (baseline and current use the same model). If distances look wrong for the same person, the usual culprit is `channelOrder`, `layout`, or `mean`/`std`.
+
+**Defaults** (used when `recognition` / `liveness` are omitted):
+
+| | Recognition (facex_nano) | Liveness (MiniFASNetV2) |
+|---|---|---|
+| `inputSize` | 112 | 80 |
+| `layout` | NCHW | NCHW |
+| `channelOrder` | RGB | BGR |
+| `mean` / `std` | 127.5 / 127.5 → `[-1,1]` | 0 / 1 → raw `[0,255]` |
+| other | `l2normalize` true, `metric` cosine | `cropScale` 2.7, `liveClassIndex` 1, `applySoftmax` true |
+
+**Threshold is model-specific.** Distances are not comparable across models — recalibrate `threshold` (and `livenessThreshold`) on your own data whenever you swap the recognition model. See [Threshold & calibration](#threshold--calibration).
+
+**No liveness?** Omit `livenessModelPath`; the liveness stage is skipped entirely (`checkLiveness` defaults to false, `livenessScore` absent).
 
 ## Liveness
 

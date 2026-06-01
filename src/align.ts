@@ -190,20 +190,32 @@ function svd2x2(
 }
 
 /**
- * Warp source face into a 112×112 aligned crop using the Umeyama affine transform.
+ * Warp source face into an aligned square crop using the Umeyama affine transform.
  * Browser-only (requires OffscreenCanvas).
+ *
+ * The ArcFace template is defined at 112×112; for a different outputSize it is
+ * scaled uniformly, so recognition models with other input sizes (e.g. 160)
+ * still receive a correctly-aligned crop.
  *
  * @param source - Full source image
  * @param fivePoints - Pixel-space [left_eye, right_eye, nose, left_mouth, right_mouth]
- * @returns 112×112 ImageData of the aligned face crop
+ * @param outputSize - Square output side in pixels (default 112)
+ * @returns outputSize×outputSize ImageData of the aligned face crop
  */
-export function warpFace(source: ImageData, fivePoints: [number, number][]): ImageData {
-  const [a, b, tx, dd, e, ty] = umeyama(fivePoints, ARCFACE_DST);
+export function warpFace(
+  source: ImageData,
+  fivePoints: [number, number][],
+  outputSize = 112,
+): ImageData {
+  const s = outputSize / 112;
+  const dst: [number, number][] =
+    s === 1 ? ARCFACE_DST : ARCFACE_DST.map(([x, y]) => [x * s, y * s]);
+  const [a, b, tx, dd, e, ty] = umeyama(fivePoints, dst);
 
   const srcCanvas = new OffscreenCanvas(source.width, source.height);
   (srcCanvas.getContext('2d') as OffscreenCanvasRenderingContext2D).putImageData(source, 0, 0);
 
-  const out = new OffscreenCanvas(112, 112);
+  const out = new OffscreenCanvas(outputSize, outputSize);
   const ctx = out.getContext('2d') as OffscreenCanvasRenderingContext2D;
 
   // Canvas setTransform(a, b, c, d, e, f) maps: x'=a*x+c*y+e, y'=b*x+d*y+f
@@ -212,5 +224,5 @@ export function warpFace(source: ImageData, fivePoints: [number, number][]): Ima
   ctx.setTransform(a, dd, b, e, tx, ty);
   ctx.drawImage(srcCanvas, 0, 0);
 
-  return ctx.getImageData(0, 0, 112, 112);
+  return ctx.getImageData(0, 0, outputSize, outputSize);
 }

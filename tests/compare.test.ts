@@ -4,7 +4,13 @@ import type { CompareResult } from '../src/types.js';
 // ---- Mocks ----------------------------------------------------------------
 
 vi.mock('../src/models.js', () => ({
-  getModels: () => ({ faceLandmarker: {}, session: {}, livenessSession: {} }),
+  getModels: () => ({
+    faceLandmarker: {},
+    session: {},
+    livenessSession: {},
+    recognitionConfig: { inputSize: 112, metric: 'cosine' },
+    livenessConfig: { cropScale: 2.7, inputSize: 80 },
+  }),
 }));
 
 vi.mock('../src/image.js', () => ({
@@ -20,7 +26,7 @@ vi.mock('../src/detect.js', () => ({
 const mockEmbed = vi.fn();
 vi.mock('../src/embed.js', () => ({
   embed: (...args: unknown[]) => mockEmbed(...args),
-  cosineDistance: (a: Float32Array, b: Float32Array) => {
+  distance: (a: Float32Array, b: Float32Array) => {
     // Simple: treat arrays as scalars stored at index 0 for test control
     return Math.abs(a[0] - b[0]);
   },
@@ -192,7 +198,7 @@ describe('multiple_faces best-match selection', () => {
       .mockResolvedValueOnce(makeEmb(0.2)); // current face 2 — distance 0.2 (match)
     const result: CompareResult = await compareFaces(dummyImageData(), dummyImageData());
     expect(result.match).toBe(true);
-    expect(result.details.cosineDistance).toBeCloseTo(0.2, 5);
+    expect(result.details.distance).toBeCloseTo(0.2, 5);
   });
 });
 

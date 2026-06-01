@@ -368,7 +368,7 @@
         document.getElementById('res-decision').textContent = r.match ? '✓ Match' : '✗ Mismatch';
 
         document.getElementById('res-confidence').textContent = (r.confidence * 100).toFixed(1) + '%';
-        document.getElementById('res-distance').textContent   = r.details.cosineDistance.toFixed(4);
+        document.getElementById('res-distance').textContent   = r.details.distance.toFixed(4);
         document.getElementById('res-threshold').textContent  = r.details.threshold.toFixed(4);
         document.getElementById('res-liveness').textContent   =
           r.details.livenessScore != null ? r.details.livenessScore.toFixed(4) : '—';

@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Bring-your-own-model configuration on `loadModels`: `recognition` and `liveness`
+  preprocessing/metric overrides (`inputSize`, `layout` NCHW/NHWC, `channelOrder`
+  RGB/BGR, `mean`, `std`, plus `l2normalize`/`metric` for recognition and
+  `cropScale`/`liveClassIndex`/`applySoftmax` for liveness). Models that don't match
+  the bundled defaults now work without forking.
+- `livenessModelPath` is now optional — omit it to disable the liveness stage
+  entirely; `checkLiveness` then defaults to false.
+- `euclidean` distance metric (in addition to the default cosine).
+
+### Changed
+
+- `CompareResult.details.cosineDistance` renamed to `details.distance` (metric-agnostic).
+
 ## [0.1.0] - 2026-06-01
 
 Initial release.

@@ -12,7 +12,7 @@ vi.mock('onnxruntime-web', () => ({
   },
 }));
 
-import { scoreLiveness } from '../src/liveness.js';
+import { scoreLiveness, resolveLivenessConfig, LIVENESS_DEFAULTS } from '../src/liveness.js';
 
 /** Fake session whose run() returns fixed logits, regardless of input. */
 function fakeSession(logits: number[]): ort.InferenceSession {
@@ -54,5 +54,32 @@ describe('scoreLiveness', () => {
   it('scores low when a spoof class dominates', async () => {
     const score = await scoreLiveness(fakeSession([0, 0, 5]), dummyCrop());
     expect(score).toBeLessThan(0.05);
+  });
+});
+
+describe('resolveLivenessConfig', () => {
+  it('returns defaults when given nothing', () => {
+    expect(resolveLivenessConfig()).toEqual(LIVENESS_DEFAULTS);
+  });
+
+  it('applies overrides', () => {
+    const c = resolveLivenessConfig({ liveClassIndex: 0, applySoftmax: false, cropScale: 4.0 });
+    expect(c.liveClassIndex).toBe(0);
+    expect(c.applySoftmax).toBe(false);
+    expect(c.cropScale).toBe(4.0);
+  });
+});
+
+describe('scoreLiveness config', () => {
+  it('respects a custom liveClassIndex', async () => {
+    const cfg = resolveLivenessConfig({ liveClassIndex: 2 });
+    const score = await scoreLiveness(fakeSession([0, 0, 5]), dummyCrop(), cfg);
+    expect(score).toBeGreaterThan(0.9);
+  });
+
+  it('returns the raw class value when applySoftmax is false', async () => {
+    const cfg = resolveLivenessConfig({ applySoftmax: false, liveClassIndex: 1 });
+    const score = await scoreLiveness(fakeSession([0.1, 0.7, 0.2]), dummyCrop(), cfg);
+    expect(score).toBeCloseTo(0.7, 6);
   });
 });

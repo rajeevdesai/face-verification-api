@@ -33,7 +33,7 @@ This fetches three files:
 |------|-------|---------|
 | `face_landmarker.task` | MediaPipe FaceLandmarker | Apache-2.0 |
 | `mobilefacenet.onnx` | facex_nano (256-D embedding) | Apache-2.0 |
-| `minifasnet_v2.onnx` | MiniFASNetV2 liveness | Apache-2.0 |
+| `minifasnet_v2.onnx` | MiniFASNetV2 liveness (optional at runtime) | Apache-2.0 |
 
 > Review [Open Risks](./README.md#open-risks) #1 before relying on the recognition model in production.
 
@@ -54,6 +54,11 @@ await loadModels({
   livenessModelPath: '/models/minifasnet_v2.onnx',
 });
 ```
+
+> `livenessModelPath` is optional — omit it to disable liveness. To use a model that
+> isn't the bundled default (different input size, channel order, normalization,
+> metric, …), pass `recognition` / `liveness` config — see
+> [Bring your own model](./README.md#bring-your-own-model).
 
 ## 5. WASM hosting (usually nothing to do)
 
@@ -90,4 +95,4 @@ If `loadModels` rejects with a WASM-not-found error, the `.wasm` blobs aren't re
 
 ## 7. Before production
 
-Calibrate `threshold` and `livenessThreshold` on your own data — the defaults are placeholders. See [Threshold & calibration](./README.md#threshold--calibration).
+Calibrate `threshold` and `livenessThreshold` on your own data — the defaults are placeholders. Recalibrate whenever you swap the recognition model; distances aren't comparable across models. See [Threshold & calibration](./README.md#threshold--calibration).

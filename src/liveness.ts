@@ -1,8 +1,9 @@
 /**
- * Passive liveness / anti-spoofing via MiniFASNetV2 (Silent-Face).
+ * Passive liveness / anti-spoofing via MiniFASNetV2 (Silent-Face), with
+ * configurable preprocessing and class index for bring-your-own models.
  *
- * Crops an expanded region around the face, runs the 80×80 anti-spoofing model,
- * and returns a single liveness probability in [0, 1].
+ * Crops an expanded region around the face, runs the anti-spoofing model, and
+ * returns a single liveness probability in [0, 1].
  *
  * LIMITATIONS (see README → Open Risks):
  *   - Screen/video replay is reliably rejected (scores the replay class).
@@ -12,19 +13,58 @@
  */
 import * as ort from 'onnxruntime-web';
 import type { NormalizedLandmark } from '@mediapipe/tasks-vision';
+import type { LivenessConfig } from './types.js';
+import { buildInputTensor, tensorDims, triplet, type ResolvedTensorSpec } from './preprocess.js';
 
-const INPUT_SIZE = 80;
+export interface ResolvedLivenessConfig extends ResolvedTensorSpec {
+  cropScale: number;
+  liveClassIndex: number;
+  applySoftmax: boolean;
+}
 
 /**
- * Silent-Face Anti-Spoofing crop: expanded bounding box around face landmarks.
+ * Defaults for the bundled MiniFASNetV2 (garciafido export).
  *
- * Scale factor 2.7 matches MiniFASNetV2 training crop. The model needs context
- * beyond the tight face region to detect texture/reflection artifacts.
+ * NOTE: this export expects raw [0,255] BGR (mean 0, std 1), NOT the [0,1] that
+ * the minivision ToTensor pipeline produces — at [0,1] it is degenerate,
+ * collapsing every input to one class. Live is index 1 (minivision convention:
+ * label 1 = real); index 2 is screen/video replay.
+ */
+export const LIVENESS_DEFAULTS: ResolvedLivenessConfig = {
+  inputSize: 80,
+  layout: 'NCHW',
+  channelOrder: 'BGR',
+  mean: [0, 0, 0],
+  std: [1, 1, 1],
+  cropScale: 2.7,
+  liveClassIndex: 1,
+  applySoftmax: true,
+};
+
+/** Merge a user LivenessConfig over the defaults. */
+export function resolveLivenessConfig(c: LivenessConfig = {}): ResolvedLivenessConfig {
+  return {
+    inputSize: c.inputSize ?? LIVENESS_DEFAULTS.inputSize,
+    layout: c.layout ?? LIVENESS_DEFAULTS.layout,
+    channelOrder: c.channelOrder ?? LIVENESS_DEFAULTS.channelOrder,
+    mean: c.mean !== undefined ? triplet(c.mean) : LIVENESS_DEFAULTS.mean,
+    std: c.std !== undefined ? triplet(c.std) : LIVENESS_DEFAULTS.std,
+    cropScale: c.cropScale ?? LIVENESS_DEFAULTS.cropScale,
+    liveClassIndex: c.liveClassIndex ?? LIVENESS_DEFAULTS.liveClassIndex,
+    applySoftmax: c.applySoftmax ?? LIVENESS_DEFAULTS.applySoftmax,
+  };
+}
+
+/**
+ * Silent-Face crop: an expanded square bounding box around the face landmarks,
+ * resized to inputSize². The model needs context beyond the tight face region
+ * to detect texture/reflection artifacts; scale 2.7 matches MiniFASNetV2 training.
  */
 export function cropForLiveness(
   source: ImageData,
   landmarks: NormalizedLandmark[],
-  scale = 2.7,
+  scale = LIVENESS_DEFAULTS.cropScale,
+  inputSize = LIVENESS_DEFAULTS.inputSize,
 ): ImageData {
   const { width, height } = source;
 
@@ -57,69 +97,39 @@ export function cropForLiveness(
   const cropW = x1 - x0;
   const cropH = y1 - y0;
 
-  // Crop then resize to INPUT_SIZE×INPUT_SIZE
+  // Crop then resize to inputSize×inputSize
   const srcCanvas = new OffscreenCanvas(width, height);
   (srcCanvas.getContext('2d') as OffscreenCanvasRenderingContext2D).putImageData(source, 0, 0);
 
-  const out = new OffscreenCanvas(INPUT_SIZE, INPUT_SIZE);
+  const out = new OffscreenCanvas(inputSize, inputSize);
   const ctx = out.getContext('2d') as OffscreenCanvasRenderingContext2D;
-  ctx.drawImage(srcCanvas, x0, y0, cropW, cropH, 0, 0, INPUT_SIZE, INPUT_SIZE);
+  ctx.drawImage(srcCanvas, x0, y0, cropW, cropH, 0, 0, inputSize, inputSize);
 
-  return ctx.getImageData(0, 0, INPUT_SIZE, INPUT_SIZE);
+  return ctx.getImageData(0, 0, inputSize, inputSize);
 }
 
 /**
- * NCHW Float32, BGR, raw pixel values in [0, 255].
+ * Run the liveness model on a crop and return the live-class probability.
  *
- * NOTE: this garciafido ONNX export expects [0,255], NOT the [0,1] that the
- * minivision ToTensor pipeline produces. At [0,1] the model is degenerate —
- * it collapses to one class (~0.99) for ALL inputs, including high-texture
- * noise — so it cannot separate live from spoof. Feeding [0,255] restores
- * discrimination. (Channel order BGR matches minivision's cv2 source.)
- */
-function preprocess(crop: ImageData): Float32Array {
-  const { data } = crop;
-  const size = INPUT_SIZE * INPUT_SIZE;
-  const tensor = new Float32Array(3 * size);
-
-  // Aligned channel writes — keep the column layout.
-  // prettier-ignore
-  for (let i = 0; i < size; i++) {
-    tensor[i]          = data[i * 4 + 2]; // B
-    tensor[size + i]   = data[i * 4 + 1]; // G
-    tensor[size*2 + i] = data[i * 4];     // R
-  }
-
-  return tensor;
-}
-
-/**
- * Run MiniFASNetV2 inference on an 80×80 crop.
- *
- * The model emits 3-class logits; we softmax them and return the live-class
- * probability. Class mapping (minivision convention; confirmed empirically with
- * live / phone-replay / print captures):
- *   index 0 — spoof (not clearly elicited in testing)
- *   index 1 — LIVE / real face  ← returned
- *   index 2 — spoof, screen/video replay (a print can also land here)
- *
- * The earlier "index 2 = live" reading was an artifact of feeding [0,1] input,
- * which collapses EVERY input to index 2 (~0.99). The fix is in preprocess():
- * this export expects [0,255]. The model card's index-0 claim is also wrong.
+ * Output is softmaxed (unless cfg.applySoftmax is false) and cfg.liveClassIndex
+ * is returned. See LIVENESS_DEFAULTS for the bundled model's class mapping.
  */
 export async function scoreLiveness(
   session: ort.InferenceSession,
   crop: ImageData,
+  cfg: ResolvedLivenessConfig = LIVENESS_DEFAULTS,
 ): Promise<number> {
-  const input = preprocess(crop);
+  const input = buildInputTensor(crop, cfg);
   const inputName = session.inputNames[0];
-  const tensor = new ort.Tensor('float32', input, [1, 3, INPUT_SIZE, INPUT_SIZE]);
+  const tensor = new ort.Tensor('float32', input, tensorDims(cfg.layout, cfg.inputSize));
   const outputs = await session.run({ [inputName]: tensor });
-  const outputName = session.outputNames[0];
-  const data = outputs[outputName].data as Float32Array;
+  const data = Array.from(outputs[session.outputNames[0]].data as Float32Array);
 
-  // Logits → softmax; live is class 1 (minivision convention: label 1 = real).
-  const e = Array.from(data).map(Math.exp);
-  const sum = e[0] + e[1] + e[2];
-  return e[1] / sum;
+  if (!cfg.applySoftmax) return data[cfg.liveClassIndex];
+
+  // Numerically stable softmax over all output classes.
+  const max = Math.max(...data);
+  const exps = data.map((x) => Math.exp(x - max));
+  const sum = exps.reduce((a, b) => a + b, 0);
+  return exps[cfg.liveClassIndex] / sum;
 }

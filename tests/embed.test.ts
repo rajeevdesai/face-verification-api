@@ -3,7 +3,14 @@ import { describe, it, expect, vi } from 'vitest';
 // embed.ts imports onnxruntime-web at module load; these pure fns don't use it, so stub it out.
 vi.mock('onnxruntime-web', () => ({ Tensor: class {} }));
 
-import { l2normalize, cosineDistance } from '../src/embed.js';
+import {
+  l2normalize,
+  cosineDistance,
+  euclideanDistance,
+  distance,
+  resolveRecognitionConfig,
+  RECOGNITION_DEFAULTS,
+} from '../src/embed.js';
 
 function norm(v: Float32Array): number {
   let s = 0;
@@ -46,5 +53,63 @@ describe('cosineDistance', () => {
 
   it('is ~2 for opposite vectors', () => {
     expect(cosineDistance(unit([1, 0]), unit([-1, 0]))).toBeCloseTo(2, 6);
+  });
+
+  it('normalizes internally (handles non-unit inputs)', () => {
+    expect(cosineDistance(Float32Array.from([1, 1, 1]), Float32Array.from([2, 2, 2]))).toBeCloseTo(
+      0,
+      6,
+    );
+  });
+});
+
+describe('euclideanDistance', () => {
+  it('is 0 for identical vectors', () => {
+    expect(
+      euclideanDistance(Float32Array.from([1, 2, 3]), Float32Array.from([1, 2, 3])),
+    ).toBeCloseTo(0, 6);
+  });
+
+  it('is the L2 norm of the difference', () => {
+    expect(euclideanDistance(Float32Array.from([0, 0]), Float32Array.from([3, 4]))).toBeCloseTo(
+      5,
+      6,
+    );
+  });
+});
+
+describe('distance metric dispatch', () => {
+  it('defaults to cosine', () => {
+    expect(distance(unit([1, 0]), unit([0, 1]))).toBeCloseTo(1, 6);
+  });
+
+  it('uses euclidean when selected', () => {
+    expect(distance(Float32Array.from([0, 0]), Float32Array.from([3, 4]), 'euclidean')).toBeCloseTo(
+      5,
+      6,
+    );
+  });
+});
+
+describe('resolveRecognitionConfig', () => {
+  it('returns defaults when given nothing', () => {
+    expect(resolveRecognitionConfig()).toEqual(RECOGNITION_DEFAULTS);
+  });
+
+  it('applies overrides and expands scalar mean/std', () => {
+    const c = resolveRecognitionConfig({
+      inputSize: 160,
+      channelOrder: 'BGR',
+      mean: 0,
+      std: 255,
+      metric: 'euclidean',
+      l2normalize: false,
+    });
+    expect(c.inputSize).toBe(160);
+    expect(c.channelOrder).toBe('BGR');
+    expect(c.mean).toEqual([0, 0, 0]);
+    expect(c.std).toEqual([255, 255, 255]);
+    expect(c.metric).toBe('euclidean');
+    expect(c.l2normalize).toBe(false);
   });
 });
