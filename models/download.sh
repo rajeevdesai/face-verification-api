@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+# Download model weights into models/. Not committed (see .gitignore).
+#
+# TODO (Open Risk #1): Replace MOBILEFACENET_URL with the validated plain ONNX
+# from facex-engine/facex releases once confirmed extractable (Apache-2.0 weights).
+# If encryption is found, fall back to FaceONNX or another Apache-2.0 source.
+# Do NOT use InsightFace weights here (non-commercial license).
+
+set -euo pipefail
+cd "$(dirname "$0")"
+
+FACE_LANDMARKER_URL="https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task"
+
+# facex_nano — Apache-2.0, 256-D embedding, NCHW [1,3,112,112], LFW 95.62%
+# Trained on MS1M-RefineV2 (dataset restricted; weights are Apache-2.0). See NOTICE.
+MOBILEFACENET_URL="https://github.com/facex-engine/facex/releases/download/facex-nano-1.0/facex_nano.onnx"
+
+# MiniFASNetV2 — garciafido/minifasnet-v2-anti-spoofing-onnx (Apache-2.0).
+# Input: NCHW [1,3,80,80], BGR, [0,1]. Output: [1,3] logits (apply softmax).
+# Live class is index 2 (empirical — genuine face scores ~0.99 there); the model
+# card's [live,print,replay] order is wrong for these weights.
+LIVENESS_URL="https://huggingface.co/garciafido/minifasnet-v2-anti-spoofing-onnx/resolve/main/minifasnet_v2.onnx"
+
+echo "Downloading FaceLandmarker .task (Apache-2.0, Google MediaPipe)…"
+curl -L --progress-bar -o face_landmarker.task "$FACE_LANDMARKER_URL"
+
+echo "Downloading facex_nano ONNX (Apache-2.0)…"
+curl -L --progress-bar -o mobilefacenet.onnx "$MOBILEFACENET_URL"
+
+echo "Downloading MiniFASNetV2 ONNX (Silent-Face Anti-Spoofing)…"
+curl -L --progress-bar -o minifasnet_v2.onnx "$LIVENESS_URL"
+
+echo "Done. Models saved to models/"
