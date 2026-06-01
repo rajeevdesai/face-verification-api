@@ -39,7 +39,9 @@ There are two tiers, split by what can run without a browser:
 - **Unit tests** (`tests/compare.test.ts`, `tests/align.test.ts`) — Node-safe. They cover the Umeyama math and the flag/decision logic with the model layer mocked. Run with `npm test`.
 - **Integration tests** (`tests/integration.test.ts`) — require browser APIs (`createImageBitmap`, `OffscreenCanvas`, WASM) and are auto-skipped in Node. Exercise them via `npm run demo` and the fixtures, or with `vite-node` if browser polyfills are available.
 
-Keep `npm test` green and `npx tsc --noEmit` clean before opening a PR. If you touch the decision/flag logic in `compare.ts`, add or update a unit test.
+- **Coverage** — `npm run coverage` runs the unit tests with a v8 coverage report and **enforces thresholds** (CI gates on it). Browser-only files (`detect.ts`, `models.ts`) and type-only files are excluded from the denominator; browser-only functions elsewhere (e.g. `warpFace`, `cropForLiveness`, `toImageData`) stay uncovered in Node, which is why the floors leave margin.
+
+Keep `npm run coverage` green and `npx tsc --noEmit` clean before opening a PR. If you touch the decision/flag logic in `compare.ts`, add or update a unit test.
 
 ### Test fixtures
 
@@ -59,7 +61,7 @@ Use only **CC0 or self-provided** images. Never commit scraped or third-party fa
 
 1. Branch off `main`.
 2. Keep the PR focused on one concern.
-3. Ensure `npm run lint`, `npm run format:check`, `npx tsc --noEmit`, and `npm test` all pass.
+3. Ensure `npm run lint`, `npm run format:check`, `npx tsc --noEmit`, and `npm run coverage` all pass.
 4. Describe what you changed and, for model/correctness changes, how you verified it.
 5. Update `README.md` / `INSTALL.md` if behavior, options, or flags change.
 

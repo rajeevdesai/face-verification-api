@@ -26,6 +26,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Liveness ensembling: `livenessModelPath` accepts an array and the per-model
   live scores are averaged. The default setup pairs MiniFASNetV2 (@2.7) with
   MiniFASNetV1SE (@4.0) to harden print detection; `download.sh` fetches both.
+- Test coverage gating: `npm run coverage` (v8) with enforced thresholds, wired
+  into CI.
 
 ### Changed
 
